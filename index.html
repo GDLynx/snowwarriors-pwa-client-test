@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Snow Warriors</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script>
+        if('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('/sw.js');
+        };
+    </script>
+    <meta name="theme-color" content="#db5945">
+    <style>
+        /* Utillities */
+
+        .red {
+            color: red;
+        }
+
+        /* layout */
+
+        .grid {
+            display: flex;
+        }
+
+        /* game entities */
+
+        .warriors div {
+            background-color: cyan;
+            color: blue;
+            width: 4em;
+            height: 4em;
+            margin: 2em 2em 2em 2em;
+        }
+ 
+        .enemy .enemy-sprite img {
+            width: 120px;
+            height: 120px;
+        }
+
+        .coin {
+            background-color: cyan;
+            -webkit-clip-path: polygon(52% 89%, 23% 54%, 41% 34%, 52% 24%, 65% 34%, 77% 56%);
+            clip-path: polygon(52% 89%, 23% 54%, 41% 34%, 52% 24%, 65% 34%, 77% 56%);
+            z-index: 100;
+            width: 6em;
+            height: 6em;
+            padding: 1em 1em 1em 1em;
+        }
+
+        .players-coins { 
+            color: yellow; 
+            font-size: 24px; 
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="grid">
+            <div class="players-coins"><b></b></div>
+            <div class="warriors">
+                <div class="yeti">
+                    yeti
+                </div>
+                <div class="snow-wizard">
+                    snow wizard
+                </div>
+                <div class="snow angel">
+                    snow angel
+                </div>
+                <div class="snow-queen">
+                    snow queen
+                </div>
+            </div>
+            <div class="enemy">
+                <div class="enemy-sprite">
+                    <img src="" alt="enemy-sprite" />
+                </div>
+                <div class="enemy-health">
+                    <b class="red"></b>
+                </div>
+            </div>
+            <!-- ideally the coins should spawn within the same area as the enemy but this was causing a bug -->
+            <div class="coins-area">
+
+            </div>
+        </div>
+    </div>
+    <div class="refresh">
+        <button>Refresh</button>
+        <p><em>This game contains bugs which are "fixable" by refreshing the page</em></p>
+    </div>
+    <script> 
+
+        let timePerRequest = 3000;
+        // let rootDomain = "http://127.0.0.1:8080"; 
+        let rootDomain = "https://snowwarriors-injwvaetlw.now.sh";
+
+        let taps = 0;
+
+        let clientSideYetis = 0; 
+
+        document.querySelector(".refresh button")>addEventListener("click", e => location.reload()); 
+
+        document.querySelector(".enemy-sprite").addEventListener("click", e => {
+            fetch(`${rootDomain}/removeHealthOnTap`);
+            taps += 1;
+            if (taps >= 7) {
+                taps = 0;
+                location.reload();
+            }
+        });
+
+        document.querySelector(".yeti").addEventListener("click", e => { 
+            fetch(`${rootDomain}/buyYeti`); 
+        }); 
+
+        // warriors attack 
+        window.setInterval(() => { 
+            if (clientSideYetis >= 1) { 
+                fetch(`${rootDomain}/removeEnemyHealthYeti`); 
+                taps += 1; 
+                if (taps >= 7) {
+                    taps = 0;
+                    location.reload();
+                }
+            } 
+        }, 1000); 
+
+        const evtSource = new EventSource(`${rootDomain}/`, { withCredentials: true });
+        evtSource.addEventListener('event', function (evt) {
+            const clientSideGame = JSON.parse(evt.data);
+            document.querySelector(".enemy-sprite img").src = clientSideGame.enemy.image;
+            document.querySelector(".enemy-health b").innerText =`${clientSideGame.enemy.name}: ${clientSideGame.enemy.health}`;  
+
+            /// Player's Warriors 
+            document.querySelector(".yeti").innerText = `yetis: ${clientSideGame.player.warriors.yeti} $100`;  
+            clientSideYetis = Number(clientSideGame.player.warriors.yeti); 
+
+            /// Player's Coins 
+            document.querySelector(".players-coins b").innerText = `$${clientSideGame.player.coins}`; 
+
+            if (clientSideGame.canDispenseCoins) {
+                for (let i = 0; i < clientSideGame.player.activeCoins; i++) {
+                    document.querySelector(".coins-area").innerHTML += `<div><b class="coin">1</b></div>`;
+                }
+                document.querySelectorAll(".coins-area").forEach((coin, index) => {
+                    coin.addEventListener("click", e => {
+                        e.target.remove();
+                        fetch(`${rootDomain}/incrementPlayersCoins`); 
+                    }); 
+                });
+                window.setTimeout(() => {
+                    document.querySelectorAll(".coin").forEach(coin => {
+                        if (coin) { 
+                            coin.remove(); 
+                        }  
+                    }); 
+                    fetch(`${rootDomain}/removeCoins`); 
+                }, 4000);
+            } 
+
+        }, false);
+
+        /* 
+        window.setInterval(() => { 
+            /* "
+            clientSideGame" is the client side representation of the game [object], but tthese are too be 
+            kept seperate as the client-side game will likely always be one step in front/behind the 
+            original [server side] game object 
+            * 
+            fetch('http://localhost:3000/').then(res => res.json().then(clientSideGame => { 
+                document.querySelector(".enemy-sprite img").src = clientSideGame.enemy.image; 
+                document.querySelector(".enemy-health b").innerText = clientSideGame.enemy.health; 
+                console.log("Upadting"); 
+            })).catch(err => console.log(err)); 
+
+            /* 
+            fetch('http://localhost:3000/', 
+            { 
+                method: "POST", body: JSON.stringify({content: "friend"})
+            }).catch(err => console.log(err)); 
+            * 
+        }, timePerRequest); 
+        */
+
+    </script>
+</body>
+
+</html>
